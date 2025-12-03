@@ -1,0 +1,17 @@
+------------------------------------------
+Usuario cutomer:
+Email: prueba@gmail.com 
+Password: 123456
+
+-------------------------------------------
+
+Usuario Admin:
+Email: admin@gmail.com
+Password: 123456
+
+------------------------------------------
+
+Login de denuncias:
+
+Email: usuario@duocuc.cl
+Password: 123456

@@ -1,18 +1,22 @@
+// ...existing code...
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:huerto_hogar_2/common/widgets/custom_app_bar.dart';
 import 'package:huerto_hogar_2/common/widgets/primary_button.dart';
-import 'package:huerto_hogar_2/common/widgets/star_rating_input.dart'; // Importa el widget de estrellas
+import 'package:huerto_hogar_2/common/widgets/star_rating_input.dart';
+// Importa el REPOSITORIO
+import 'package:huerto_hogar_2/features/products/data/product_repository.dart';
 import 'package:huerto_hogar_2/features/products/domain/product_model.dart';
-import 'package:huerto_hogar_2/features/products/domain/review_model.dart'; // Importa el modelo de reseña
-import 'package:huerto_hogar_2/features/products/presentation/widgets/review_card.dart'; // Importa la tarjeta de reseña
+import 'package:huerto_hogar_2/features/products/domain/review_model.dart';
+import 'package:huerto_hogar_2/features/products/presentation/widgets/review_card.dart';
+import 'package:huerto_hogar_2/features/cart/data/cart_repository.dart';
 
-// 1. CONVERTIR A STATEFULWIDGET
 class ProductDetailsScreen extends StatefulWidget {
   final String productId;
 
   const ProductDetailsScreen({
-    super.key, 
-    required this.productId
+    super.key,
+    required this.productId,
   });
 
   @override
@@ -20,20 +24,29 @@ class ProductDetailsScreen extends StatefulWidget {
 }
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
-  // 2. DEFINIR EL ESTADO
-  late final Product product;
-  List<Review> _reviews = []; // Lista de reseñas en el estado
-  
-  // Controladores para el modal
+  // Estado
+  late final Future<Product?> _productFuture;
+  final ProductRepository _productRepository = ProductRepository();
+  final CartRepository _cartRepo = CartRepository();
+
+  // Estado para las reseñas
+  List<Review> _reviews = [];
+
   final _commentController = TextEditingController();
   int _newRating = 0;
 
   @override
   void initState() {
     super.initState();
-    // 3. CARGAR LOS DATOS FALSOS AL INICIAR
-    product = dummyProducts.firstWhere((p) => p.id == widget.productId);
-    _reviews = List.from(dummyReviews); // Copia la lista dummy al estado
+    // Carga el producto desde el repositorio
+    _productFuture = _productRepository.getProductById(widget.productId);
+
+    // Si usas dummyReviews en review_model.dart, mantenlo; si no, inicializa vacío
+    try {
+      _reviews = List.from(dummyReviews);
+    } catch (_) {
+      _reviews = [];
+    }
   }
 
   @override
@@ -41,21 +54,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     _commentController.dispose();
     super.dispose();
   }
-  
-  // 4. FUNCIÓN PARA MOSTRAR EL MODAL
+
   void _showAddReviewModal() {
-    // Resetea los valores
     _commentController.clear();
     _newRating = 0;
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Permite que el modal sea más alto
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        // Padding para que el teclado no tape el modal
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -72,14 +82,12 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              // Widget de Estrellas
               StarRatingInput(
                 onRatingChanged: (rating) {
-                  _newRating = rating; // Guarda la puntuación
+                  _newRating = rating;
                 },
               ),
               const SizedBox(height: 16),
-              // Campo de Texto
               TextFormField(
                 controller: _commentController,
                 decoration: InputDecoration(
@@ -91,7 +99,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 maxLines: 3,
               ),
               const SizedBox(height: 24),
-              // Botón de Enviar
               PrimaryButton(
                 text: 'Enviar Reseña',
                 onPressed: _submitReview,
@@ -104,137 +111,183 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
-  // 5. FUNCIÓN PARA SIMULAR EL ENVÍO
   void _submitReview() {
     if (_newRating == 0 || _commentController.text.isEmpty) {
-      // (Opcional) Mostrar un error
-      return; 
+      return;
     }
 
-    // Crea la nueva reseña (con datos falsos de usuario)
     final newReview = Review(
       id: 'sim-${DateTime.now().millisecondsSinceEpoch}',
-      userName: 'Sofía Ramírez', // Simula el usuario logueado
+      userName: 'Sofía Ramírez',
       rating: _newRating.toDouble(),
       comment: _commentController.text.trim(),
       date: 'Justo ahora',
     );
 
-    // Actualiza el estado (Optimistic Update)
     setState(() {
-      _reviews.insert(0, newReview); // Añade la nueva reseña al inicio de la lista
+      _reviews.insert(0, newReview);
     });
 
-    Navigator.pop(context); // Cierra el modal
+    Navigator.pop(context);
   }
 
-  // 6. ACTUALIZAR EL BUILD
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ... (Tu CustomAppBar se queda igual)
-        CustomAppBar(
-          // ...
-        ),
-        
-        Expanded(
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ... (Tu Image.asset se queda igual)
-                Image.asset(
-                  product.imageAsset,
-                  width: double.infinity,
-                  height: 300,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      width: double.infinity,
-                      height: 300,
-                      color: Colors.grey[200],
-                      child: Icon(Icons.image_not_supported, color: Colors.grey[400]),
-                    );
-                  },
-                ),
-                
-                Padding(
-                  padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ... (Textos de nombre, descripción, detalles... se quedan igual)
-                      Text(product.name, /* ... */),
-                      const SizedBox(height: 16),
-                      Text(product.description, /* ... */),
-                      const SizedBox(height: 24),
-                      const Text('Product Details', /* ... */),
-                      const SizedBox(height: 16),
-                      _buildDetailRow('Price', product.price),
-                      const Divider(height: 24),
-                      _buildDetailRow('Origin', product.origin),
+    return FutureBuilder<Product?>(
+      future: _productFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: CustomAppBar(backgroundColor: Colors.white),
+            body: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-                      // --- ¡AÑADIR ESTA SECCIÓN DE RESEÑAS! ---
-                      const SizedBox(height: 32),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Valoraciones',
-                            style: TextStyle(
-                              fontSize: 20, 
-                              fontWeight: FontWeight.bold
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: _showAddReviewModal, // Llama al modal
-                            child: const Text('Escribir reseña'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
+        if (snapshot.hasError || !snapshot.hasData) {
+          return Scaffold(
+            appBar: CustomAppBar(
+              backgroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                onPressed: () {
+                  if (context.canPop()) context.pop();
+                },
+              ),
+            ),
+            body: Center(
+              child: Text('Error al cargar el producto: ${snapshot.error}'),
+            ),
+          );
+        }
 
-                      // Lista de Reseñas
-                      ListView.builder(
-                        itemCount: _reviews.length,
-                        shrinkWrap: true, // Necesario dentro de un SingleChildScrollView
-                        physics: const NeverScrollableScrollPhysics(), // Evita doble scroll
-                        itemBuilder: (context, index) {
-                          return ReviewCard(review: _reviews[index]);
-                        },
-                      ),
-                      // --- FIN DE LA SECCIÓN DE RESEÑAS ---
-                    ],
-                  ),
+        final product = snapshot.data!;
+
+        return Column(
+          children: [
+            CustomAppBar(
+              backgroundColor: Colors.white,
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.black),
+                onPressed: () {
+                  if (context.canPop()) context.pop();
+                },
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined, color: Colors.black),
+                  onPressed: () => context.push('/cart'),
                 ),
               ],
             ),
-          ),
-        ),
-
-        // --- 3. EL BOTÓN FIJO DE "AÑADIR AL CARRITO" ---
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: PrimaryButton(
-            text: 'Add to Cart',
-            onPressed: () {
-              // TODO: Lógica para agregar al carrito
-            },
-          ),
-        ),
-      ],
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Image.network(
+                      product.imageUrl,
+                      width: double.infinity,
+                      height: 300,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: double.infinity,
+                          height: 300,
+                          color: Colors.grey[200],
+                          child: Icon(Icons.image_not_supported, color: Colors.grey[400]),
+                        );
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            product.name,
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            product.description,
+                            style: const TextStyle(fontSize: 16, color: Colors.black54),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Product Details',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildDetailRow('Price', product.price),
+                          const Divider(height: 24),
+                          _buildDetailRow('Origin', product.origin),
+                          const SizedBox(height: 32),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Valoraciones',
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                              ),
+                              TextButton(
+                                onPressed: _showAddReviewModal,
+                                child: const Text('Escribir reseña'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ListView.builder(
+                            itemCount: _reviews.length,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemBuilder: (context, index) {
+                              return ReviewCard(review: _reviews[index]);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: PrimaryButton(
+                text: 'Añadir al carrito',
+                onPressed: () async {
+                  try {
+                    await _cartRepo.addToCart(product.id);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Producto añadido al carrito')),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  // Widget helper para las filas de "Precio" y "Origen"
-  Widget _buildDetailRow(String title, String value) {
+  Widget _buildDetailRow(String title, Object value) {
+    final display = value is double ? '\$${value.toStringAsFixed(2)}' : value.toString();
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title, style: const TextStyle(fontSize: 16, color: Colors.black54)),
-        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+        Text(display, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
       ],
     );
   }
 }
+// ...existing code...

@@ -1,0 +1,37 @@
+lib/
+├── main.dart           # Punto de entrada de tu app
+|
+├── app/                # Configuración central de la app
+│   ├── app_theme.dart    # Tu ThemeData (colores, fuentes)
+│   └── router/         # Configuración de rutas
+│       └── app_router.dart
+|
+├── common/             # Widgets y lógica compartidos por TODA la app
+│   ├── constants/      # Constantes (ej. strings, enums)
+│   ├── utils/          # Clases de ayuda (ej. validadores)
+│   └── widgets/        # Widgets 100% reutilizables
+│       ├── custom_app_bar.dart   <-- ¡Aquí está la clave!
+│       ├── main_layout.dart      <-- ¡Y aquí!
+│       └── primary_button.dart
+|
+└── features/           # Cada "módulo" o "funcionalidad" de tu app
+    ├── auth/           # Ejemplo: Autenticación
+    │   ├── presentation/ # Capa de UI (lo que el usuario ve)
+    │   │   ├── screens/
+    │   │   │   ├── login_screen.dart
+    │   │   │   └── register_screen.dart
+    │   │   └── widgets/  # Widgets específicos de Auth
+    │   │       └── auth_form_field.dart
+    │   └── data/       # (Opcional por ahora) Lógica de negocio, etc.
+    │
+    ├── products/       # Ejemplo: Productos
+    │   ├── presentation/
+    │   │   ├── screens/
+    │   │   │   └── product_list_screen.dart
+    │   │   └── widgets/
+    │   │       └── product_card.dart
+    │
+    └── profile/        # Ejemplo: Perfil de usuario
+        └── presentation/
+            ├── screens/
+            │   └── profile_screen.dart

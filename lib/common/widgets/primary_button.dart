@@ -3,12 +3,14 @@ import 'package:huerto_hogar_2/app/app_theme.dart'; // Importa tus colores
 
 class PrimaryButton extends StatelessWidget {
   final String text;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isLoading;
 
   const PrimaryButton({
     super.key,
     required this.text,
     required this.onPressed,
+    this.isLoading = false,
   });
 
   @override
@@ -17,7 +19,7 @@ class PrimaryButton extends StatelessWidget {
       width: double.infinity, // Ocupa todo el ancho
       height: 50, // Altura fija
       child: ElevatedButton(
-        onPressed: onPressed,
+        onPressed: isLoading ? null : onPressed,
         style: ElevatedButton.styleFrom(
           // Color de fondo del botón
           backgroundColor: AppTheme.colorVerdePrincipal,
