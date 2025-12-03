@@ -2,99 +2,179 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:huerto_hogar_2/common/widgets/custom_app_bar.dart';
 import 'package:huerto_hogar_2/features/auth/presentation/widgets/auth_layout.dart';
+import 'package:huerto_hogar_2/common/widgets/primary_button.dart';
+import 'package:huerto_hogar_2/features/auth/data/auth_repository.dart';
+import 'package:huerto_hogar_2/common/denuncias_auth_service.dart'; // 👈 NUEVO
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _authRepository = AuthRepository();
+  final _denunciasAuthService = DenunciasAuthService(); // 👈 NUEVO
+  bool _isLoading = false;
+
+  Future<void> _login() async {
+  final email = _emailController.text.trim();
+  final pass  = _passwordController.text.trim();
+
+  if (email.isEmpty || pass.isEmpty) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Por favor, ingresa email y contraseña.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    // 1) LOGIN EN SUPABASE
+    await _authRepository.signIn(email, pass);
+
+    // 2) REFRESCAR USER (ROL)
+    await Supabase.instance.client.auth.refreshSession();
+    final user = Supabase.instance.client.auth.currentUser;
+    final role = user?.userMetadata?['role']?.toString();
+
+    // 3) LOGIN/REGISTRO AUTOMÁTICO EN FLASK
+    await _denunciasAuthService.ensureUserAndLogin(email, pass);
+
+    // 4) REDIRECCIONAR
+    if (!mounted) return;
+    if (role == 'admin') {
+      context.go('/admin');
+    } else {
+      context.go('/home');
+    }
+
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error al iniciar sesión: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // 1. Usamos nuestra plantilla 'AuthLayout'
     return AuthLayout(
-      // 2. Le pasamos un CustomAppBar configurado como en tu imagen
       appBar: CustomAppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            // Aquí irá la lógica para volver (GoRouter lo hará fácil)
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/welcome');
+            }
           },
         ),
-        // Le pasamos el color de fondo VERDE para que sea igual al body
         backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
       ),
-
-      // 3. Aquí pegas TODO el contenido (body) de tu pantalla de Login
-      body: Column(
-        children: [
-          // Pega tu logo aquí
-          // Image.asset('assets/logo.png'), 
-          Image.asset(
-            'assets/images/Logo_Huerto_Hogar.png',
-            height: 100,
-          ),
-          const SizedBox(height: 30),
-          const Text(
-            'Iniciar Sesion',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          const Text('Inicia sesion para poder comprar productos...'),
-          const SizedBox(height: 30),
-          
-          // Pega tus TextFields aquí
-          TextFormField(
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.email),
-              hintText: 'Ingrese su email',
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              )
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/Logo_Huerto_Hogar.png',
+              height: 100,
             ),
-          ),
-          const SizedBox(height: 16),
-          // ... el otro textfield para contraseña ...
-          
-const SizedBox(height: 16),
-          
-          // --- 2. CAMPO DE CONTRASEÑA (¡AQUÍ ESTÁ!) ---
-          TextFormField(
-            obscureText: true, // Para que oculte la contraseña
-            decoration: InputDecoration(
-              prefixIcon: Icon(Icons.lock_outline),
-              suffixIcon: Icon(Icons.visibility_off_outlined), // Ícono de "ver"
-              hintText: 'Contraseña',
-              fillColor: Colors.white,
-              filled: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
+            const SizedBox(height: 40),
+            const SizedBox(height: 30),
+            Text(
+              'Iniciar Sesión',
+              style: Theme.of(context).textTheme.headlineMedium!.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Inicia sesión para poder comprar productos...',
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            const SizedBox(height: 30),
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.email_outlined),
+                hintText: 'Ingrese su email',
+                fillColor: Colors.white,
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
-          ),
-          // --- FIN DEL CAMPO DE CONTRASEÑA ---
-
-          const SizedBox(height: 16),
-          
-          // Link de "Olvidé contraseña"
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () { /* Lógica para ir a olvidar contraseña */ },
-              child: const Text('¿Olvidaste tu contraseña?'),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.lock_outline),
+                suffixIcon: const Icon(Icons.visibility_off_outlined),
+                hintText: 'Contraseña',
+                fillColor: Colors.white,
+                filled: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
-          ),
-
-          const SizedBox(height: 30),
-          // Pega tu botón aquí
-          ElevatedButton(
-            onPressed: () {
-              context.go('/home');
-            },
-            child: const Text('Iniciar Sesión'),
-          ),
-        ],
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  // TODO: Olvidé contraseña
+                },
+                child: const Text('¿Olvidaste tu contraseña?'),
+              ),
+            ),
+            const SizedBox(height: 30),
+            PrimaryButton(
+              onPressed: _isLoading ? null : _login,
+              text: 'Iniciar Sesión',
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text("¿No tienes una cuenta?"),
+                TextButton(
+                  onPressed: () => context.push('/register'),
+                  child: const Text('Crear una'),
+                ),
+              ],
+            )
+          ],
+        ),
       ),
     );
   }

@@ -22,8 +22,8 @@ class ProductGridCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- 1. Imagen ---
-            Image.asset(
-              product.imageAsset,
+            Image.network(
+              product.imageUrl,
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
@@ -64,7 +64,7 @@ class ProductGridCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        product.price, // Usamos el precio del modelo
+                        '\$${product.price.toStringAsFixed(0)}', // Usamos el precio del modelo
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,

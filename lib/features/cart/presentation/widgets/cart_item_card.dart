@@ -28,8 +28,8 @@ class CartItemCard extends StatelessWidget {
             // --- Imagen ---
             ClipRRect(
               borderRadius: BorderRadius.circular(8.0),
-              child: Image.asset(
-                item.product.imageAsset,
+              child: Image.network(
+                item.product.imageUrl,
                 width: 70,
                 height: 70,
                 fit: BoxFit.cover,
@@ -53,7 +53,7 @@ class CartItemCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${item.product.price}', // Muestra el precio (forzado a String)
+                    '\$${item.product.price.toStringAsFixed(0)}', // Muestra el precio (forzado a String)
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.grey[700],

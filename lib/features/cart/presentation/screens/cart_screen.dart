@@ -5,7 +5,11 @@ import 'package:huerto_hogar_2/common/widgets/primary_button.dart';
 import 'package:huerto_hogar_2/features/cart/domain/cart_item_model.dart';
 import 'package:huerto_hogar_2/features/cart/presentation/widgets/cart_item_card.dart';
 import 'package:huerto_hogar_2/features/cart/presentation/widgets/order_summary.dart';
-import 'package:huerto_hogar_2/features/products/domain/product_model.dart'; // Importa tus productos dummy
+// 🔄 CAMBIO: repo del carrito
+import 'package:huerto_hogar_2/features/cart/data/cart_repository.dart';
+import 'package:huerto_hogar_2/features/products/domain/product_model.dart';
+
+
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -15,122 +19,150 @@ class CartScreen extends StatefulWidget {
 }
 
 class _CartScreenState extends State<CartScreen> {
-  // --- ESTADO LOCAL (Nuestra base de datos falsa) ---
-  List<CartItem> _cartItems = [];
-  double _envio = 3500;
-  double _promocion = -1800;
+  // 🔄 CAMBIO: ya NO usamos dummy local, sino stream del repo
+  final _repo = CartRepository();
 
-  // Precios "falsos" para el cálculo. En una app real, vendrían del producto.
-  final Map<String, double> _productPrices = {
-    '1': 2990, // Tomates
-    '2': 4990, // Fresas
-  };
+  // Mantén tus costos como estaban (mismo color/estructura)
+  final double _envio = 3500;
+  final double _promocion = -1800;
 
-  @override
-  void initState() {
-    super.initState();
-    // Cargamos el carrito con datos falsos
-    _loadDummyCart();
-  }
+  // 🔄 CAMBIO: convierte row del stream → CartItem (para reusar tu CartItemCard)
+  CartItem _rowToCartItem(Map<String, dynamic> row) {
+  final q = (row['quantity'] as num?)?.toInt() ?? 1;
+  final p = Map<String, dynamic>.from(row['product'] ?? {});
+  final price = (p['price'] is num)
+      ? (p['price'] as num).toDouble()
+      : double.tryParse(p['price']?.toString() ?? '0') ?? 0.0;
 
-  void _loadDummyCart() {
-    setState(() {
-      _cartItems = [
-        // Asegúrate de que los 'id' coincidan con tus 'dummyProducts'
-        CartItem(product: dummyProducts.firstWhere((p) => p.id == '2'), quantity: 2), // Fresas
-        CartItem(product: dummyProducts.firstWhere((p) => p.id == '1'), quantity: 3), // Tomates
-      ];
-    });
-  }
+  return CartItem(
+    product: Product(
+      id: p['id'].toString(),
+      name: p['name']?.toString() ?? 'Producto',
+      price: price,                              // 👈 double
+      imageUrl: p['image_url']?.toString() ?? '',
+      description: p['description']?.toString() ?? '',
+      supplier: p['supplier']?.toString() ?? '',
+      origin: p['origin']?.toString() ?? '',
+    ),
+    quantity: q,
+  );
+}
 
-  // --- Lógica de negocio ---
-  void _incrementItem(CartItem item) {
-    setState(() {
-      item.quantity++;
-    });
-  }
-
-  void _decrementItem(CartItem item) {
-    setState(() {
-      if (item.quantity > 1) {
-        item.quantity--;
-      } else {
-        // Si la cantidad es 1, lo removemos de la lista
-        _cartItems.remove(item);
-      }
-    });
-  }
-
-  double _calculateSubtotal() {
-    double subtotal = 0;
-    for (var item in _cartItems) {
-      double price = _productPrices[item.product.id] ?? 0;
-      subtotal += (price * item.quantity);
+  
+  // ✅ Subtotal con double
+  double _calculateSubtotal(List<CartItem> items) {
+    double sub = 0;
+    for (final it in items) {
+      sub += it.product.price * it.quantity;       // 👈 sin parseos
     }
-    return subtotal;
+    return sub;
   }
-
-  double _calculateTotal() {
-    return _calculateSubtotal() + _envio + _promocion;
-  }
-  // --- Fin de la Lógica ---
-
+  
   @override
   Widget build(BuildContext context) {
-    // Calculamos los totales cada vez que el build se ejecuta
-    final subtotal = _calculateSubtotal();
-    final total = _calculateTotal();
-
-    // ¡Sin Scaffold! El MainAppLayout se encarga.
     return Column(
       children: [
-        // --- 1. EL APPBAR ---
+        // 1) APPBAR (igual)
         CustomAppBar(
           title: 'Tu Carrito',
           backgroundColor: Colors.white,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.black),
             onPressed: () {
-              // Lógica de "atrás" inteligente
               if (context.canPop()) {
-                context.pop(); // Si fue 'push' (desde producto), vuelve
+                context.pop();
               } else {
-                context.go('/home'); // Si fue 'go' (desde nav bar), va a home
+                context.go('/home');
               }
             },
           ),
         ),
 
-        // --- 2. LA LISTA DE ITEMS ---
+        // 2) LISTA (igual estructura, pero con StreamBuilder)
         Expanded(
-          child: ListView.builder(
-            itemCount: _cartItems.length,
-            itemBuilder: (context, index) {
-              final item = _cartItems[index];
-              return CartItemCard(
-                item: item,
-                onIncrement: () => _incrementItem(item),
-                onDecrement: () => _decrementItem(item),
+          child: StreamBuilder<List<Map<String, dynamic>>>(
+            stream: _repo.getCartStream(), // 🔄 CAMBIO: datos reales
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final rows = snapshot.data!;
+              final items = rows.map(_rowToCartItem).toList();
+
+              if (items.isEmpty) {
+                return const Center(child: Text('Tu carrito está vacío'));
+              }
+
+              return ListView.builder(
+                itemCount: items.length,
+                itemBuilder: (context, index) {
+                  final item = items[index];
+
+                  return CartItemCard(
+                    item: item,
+                    // 🔄 CAMBIO: actualiza en Supabase (mantenemos tus botones)
+                    onIncrement: () async {
+                      final cartId = rows[index]['id'] as String;
+                      final newQty = item.quantity + 1;
+                      await _repo.setQuantity(cartId, newQty);
+                    },
+                    onDecrement: () async {
+                      final cartId = rows[index]['id'] as String;
+                      final newQty = item.quantity - 1;
+                      await _repo.setQuantity(cartId, newQty);
+                    },
+                  );
+                },
               );
             },
           ),
         ),
 
-        // --- 3. EL RESUMEN ---
-        OrderSummary(
-          subtotal: subtotal,
-          envio: _envio,
-          promocion: _promocion,
-          total: total,
+        // 3) RESUMEN (mismo widget y estilo)
+        Builder(
+          builder: (context) {
+            // Volvemos a leer el stream una vez para calcular totales y no romper la estructura:
+            // (si prefieres, mueve este cálculo dentro del StreamBuilder de arriba y pasa los valores)
+            return StreamBuilder<List<Map<String, dynamic>>>(
+              stream: _repo.getCartStream(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final rows = snapshot.data!;
+                // si quieres, filtra filas sin product (datos viejos inválidos)
+                final rowsOk = rows.where((r) => r['product'] != null).toList();
+
+                if (rowsOk.isEmpty) {
+                  return const Center(child: Text('Tu carrito está vacío'));
+                }
+                
+                final items = rows.map(_rowToCartItem).toList();
+                final subtotal = _calculateSubtotal(items);
+                final total = subtotal + _envio + _promocion;
+
+                return OrderSummary(
+                  subtotal: subtotal,
+                  envio: _envio,
+                  promocion: _promocion,
+                  total: total,
+                );
+              },
+            );
+          },
         ),
 
-        // --- 4. EL BOTÓN DE PAGO ---
+        // 4) BOTÓN (igual)
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: PrimaryButton(
             text: 'Proceder al Pago',
             onPressed: () {
-              // TODO: Lógica para ir a la pasarela de pago
+              // TODO: pasarela de pago
             },
           ),
         ),
